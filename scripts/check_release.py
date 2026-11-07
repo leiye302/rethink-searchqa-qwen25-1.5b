@@ -27,6 +27,7 @@ ALLOWED = {
     'src/rethink_searchqa/hint_api.py', 'src/rethink_searchqa/hints.py',
     'src/rethink_searchqa/rethink_api_protocol.py', 'src/rethink_searchqa/rethink_benchmark_contract.py',
     'src/rethink_searchqa/trainer.py',
+    'src/rethink_searchqa/retriever_guard.py',
     'configs/sft_data.json', 'configs/requirements-sft.txt', 'docs/STAGE1.md',
     'src/rethink_searchqa/sft.py', 'src/rethink_searchqa/sft_eval.py',
     'src/rethink_searchqa/gpu_resident.py', 'tests/test_sft.py',

@@ -27,6 +27,15 @@ jobs:
       - run: python -m pytest tests -q
       - name: Pinned full QA data and fixed balanced monitoring subset
         run: python src/data.py --prepare --verify
+      - name: Isolated Stage-1 dependencies, public data and CPU regressions
+        run: |
+          python -m venv "$RUNNER_TEMP/searchqa-stage1"
+          sft_python="$RUNNER_TEMP/searchqa-stage1/bin/python"
+          "$sft_python" -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          "$sft_python" -m pip install -r configs/requirements-sft.txt pytest==8.3.5
+          "$sft_python" src/data.py --verify
+          PYTHONPATH=src "$sft_python" -m rethink_searchqa.sft prepare
+          RETHINK_SFT_TEST_DATA="$PWD/data/stage1_v4" "$sft_python" -m pytest tests/test_sft.py -q
       - name: Real native environment with a labeled HTTP fixture, not an E5 quality claim
         run: python src/env_smoke.py
       - name: Entry and shell checks without GPU or retriever weights

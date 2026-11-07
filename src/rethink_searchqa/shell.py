@@ -3,6 +3,7 @@ import re
 from . import action_wrapper
 from .protocol import digest
 from .history_display import NATIVE, actor_input as native_input
+from .retriever_guard import require_retrieval_ok
 
 
 MARKER = '<RETHINK>'
@@ -49,12 +50,19 @@ def native_response(text):
 
 
 def wire_environment(env, *, capture_hints):
-    """Only render Actor prompts and translate the shell before native parsing."""
+    """Adapt the action shell and fail closed on exhausted retrieval errors."""
     if hasattr(env, '_rethink_capture_hints'):
         raise ValueError('Environment is already wired')
-    build, project = env.build_text_obs, env.projection_f
+    build, project, step = env.build_text_obs, env.projection_f, env.step
+
+    def checked_step(*args, **kwargs):
+        result = step(*args, **kwargs)
+        require_retrieval_ok(result[0]['anchor'])
+        return result
+
     env.build_text_obs = lambda *a, **kw: [render(x) for x in build(*a, **kw)]
     env.projection_f = lambda responses: project([native_response(x) for x in responses])
+    env.step = checked_step
     env._rethink_capture_hints = bool(capture_hints)
     return env
 

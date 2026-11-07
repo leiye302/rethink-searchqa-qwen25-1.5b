@@ -4,12 +4,15 @@ import json
 from pathlib import Path
 import re
 import time
+from types import SimpleNamespace
 from common import atomic_json
 from .hint_api import fetch, HintAPIHold, HintAPIFatal
+from .history_display import INTRO as HISTORY_INTRO
 from .shell import MARKER_ID, assert_token
 
 HINT_BEGIN='[Actor-triggered local hint]'
 HINT_END='[End local hint]'
+TURN_INTRO="\nNow it's your turn to respond for the current step.\n"
 
 
 def capture(records, tokenizer, batch, next_obs, infos, active, step):
@@ -131,10 +134,58 @@ class RowSkillProvider:
         if not name.startswith('get_privileged_info'):
             return original
         def wrapped(*args,**kwargs):
-            static=original(*args,**kwargs)
-            self.candidate=static+'\n\n'+HINT_BEGIN+'\n'+self.hint+'\n'+HINT_END if self.hint else static
+            if self.candidate is None:
+                static=original(*args,**kwargs)
+                self.candidate=static+'\n\n'+HINT_BEGIN+'\n'+self.hint+'\n'+HINT_END if self.hint else static
             return self.candidate
         return wrapped
+
+
+def complete_hint(teacher, tokenizer, response_len, hint):
+    mask=teacher.batch['attention_mask'][0,:-response_len].bool()
+    ids=teacher.batch['input_ids'][0,:-response_len][mask]
+    return HINT_BEGIN+'\n'+hint+'\n'+HINT_END in tokenizer.decode(ids,skip_special_tokens=False)
+
+
+def fit_teacher_history(row, tokenizer, budget, skill_text):
+    """Reserve the native static+hint prefix by trimming only Teacher's old H."""
+    import torch
+    responses=row.batch['responses']
+    width=responses.shape[1]
+    mask=row.batch['attention_mask']
+    prompt=row.batch['input_ids'][0,:-width][mask[0,:-width].bool()]
+    text=tokenizer.decode(prompt,skip_special_tokens=False)
+    # The visible question precedes history in the pinned prompt. Preserve it
+    # (if still present) and the current turn instructions, not just the tail.
+    head,history_intro,rest=text.partition(HISTORY_INTRO)
+    if history_intro:
+        head+=history_intro
+        history,turn,tail=rest.rpartition(TURN_INTRO)
+    else:
+        head=''
+        history,turn,tail=text.rpartition(TURN_INTRO)
+    if not turn:
+        head,history,tail='',text,''
+    if history.startswith('Your question: ') or '\nYour question: ' in history:
+        raise RuntimeError('Native Teacher budget cannot fit without removing the visible question; no update')
+    tail=turn+tail
+    # Exactly the prefix used by the pinned native build_teacher_batch.
+    prefix=f'[Privileged Skill Information]\n{skill_text}\n\n'
+    old=tokenizer.encode(history,add_special_tokens=False)
+    keep=min(len(old),budget-len(tokenizer.encode(prefix+head+tail,add_special_tokens=False)))
+    while keep>=0:
+        recent=tokenizer.decode(old[-keep:],skip_special_tokens=False) if keep else ''
+        fitted=tokenizer.encode(head+recent+tail,add_special_tokens=False)
+        # Verify exactly what the native builder will re-tokenize at the join.
+        decoded=tokenizer.decode(fitted,skip_special_tokens=False)
+        excess=len(tokenizer.encode(prefix+decoded,add_special_tokens=False))-budget
+        if fitted and excess<=0:
+            return SimpleNamespace(batch={
+                'input_ids':torch.cat((prompt.new_tensor([fitted]),responses),dim=1),
+                'attention_mask':torch.cat((mask.new_ones((1,len(fitted))),mask[:,-width:]),dim=1),
+                'responses':responses},non_tensor_batch=row.non_tensor_batch)
+        keep-=max(1,excess)
+    raise RuntimeError('Native Teacher budget cannot fit the complete skill, hint and prompt; no update')
 
 
 def score_teacher(trainer,batch,audit_dir,*,native_teacher):
@@ -145,6 +196,7 @@ def score_teacher(trainer,batch,audit_dir,*,native_teacher):
     hints,reasons=collect_hints(batch,cache,timeout=120,retries=5,workers=4)
     if len(hints) != len(batch.batch['responses']):
         raise ValueError('Actor hint rows do not match the native training batch')
+    repacked=0
     if not any(hints):
         # Includes zero-trigger updates and complete schema/content fallback.
         result,_=native_teacher(batch)
@@ -159,12 +211,16 @@ def score_teacher(trainer,batch,audit_dir,*,native_teacher):
             if not hint:
                 continue
             row=batch.select_idxs([i])
-            teacher=build(row,RowSkillProvider(trainer.skill_provider,hint))
-            mask=teacher.batch['attention_mask'][0,:-response_len].bool()
-            ids=teacher.batch['input_ids'][0,:-response_len][mask]
-            text=trainer.tokenizer.decode(ids,skip_special_tokens=False)
-            if HINT_BEGIN+'\n'+hint+'\n'+HINT_END not in text:
-                raise RuntimeError('Native Teacher context truncated the local hint; no update')
+            provider=RowSkillProvider(trainer.skill_provider,hint)
+            teacher=build(row,provider)
+            if not complete_hint(teacher,trainer.tokenizer,response_len,hint):
+                # Replay the skill selected from the original H; do not select
+                # a different static skill based on the cropped Teacher input.
+                fitted=fit_teacher_history(row,trainer.tokenizer,budget,provider.candidate)
+                teacher=build(fitted,provider)
+                if not complete_hint(teacher,trainer.tokenizer,response_len,hint):
+                    raise RuntimeError('Native Teacher did not retain the complete local hint; no update')
+                repacked+=1
             for k in ('input_ids','attention_mask','position_ids'):
                 teacher_batch.batch[k][i]=teacher.batch[k][0]
         if (not torch.equal(teacher_batch.batch['responses'],batch.batch['responses'])
@@ -177,6 +233,7 @@ def score_teacher(trainer,batch,audit_dir,*,native_teacher):
     report={'step':trainer.global_steps,'decisions':len(hints),
             'actor_marker_positions':sum(x!='not_triggered' for x in reasons),
             'applied':reasons.count('applied'),'fallback_reasons':{x:reasons.count(x) for x in sorted(set(reasons))},
+            'teacher_context_repacked':repacked,
             'seconds':time.perf_counter()-begin,'analyzer_is_router':False,'student_sees_hints':False,
             'model':'glm-5.3-flash','protocol':'actor_only_episode_hints_glm_v2_20261015',
             'fixed_initial_teacher':False,'teacher_scoring':'public_pre_update_current_actor'}

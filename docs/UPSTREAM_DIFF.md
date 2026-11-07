@@ -25,9 +25,23 @@ uses **beta 5** and OPSD coefficient **0.01** in all applicable Search-QA arms.
    current Actor. No separate Teacher model, action replacement or new loss.
 4. **Failure boundaries.** Invalid returned hint content falls back to the
    native static-skill Teacher and is counted. Transient API failures retain the
-   batch and retry before an update. Permanent configuration, auth, cache or
-   hint-truncation errors stop visibly. Successful requests are cached per run.
-   Evaluation never captures or requests hints.
+   batch and retry before an update. Permanent configuration, auth and cache
+   failures stop visibly. As in ALFWorld/WebShop, an accepted hint must survive
+   intact. Only when the native left truncation would cut that hint, preserve
+   the chosen static skill and complete hint by trimming the oldest **Teacher-only**
+   history within the same 4096-token budget, retaining the visible question,
+   current turn instructions and most recent available evidence. Student input,
+   sampled responses, masks, native skill selection and loss are unchanged.
+   The number of such rows is reported as `rethink/teacher_context_repacked`. If the complete
+   prefix still cannot fit, stop before an update. Successful requests are cached
+   per run. Evaluation never captures or requests hints.
+5. **Retrieval validity.** Native search retries, tool execution and EM stay
+   unchanged. After retries are exhausted, the shared Search-QA adapter rejects
+   explicit native retriever error observations before they become training
+   data or scores. Valid empty search results still count normally. A failed
+   evaluation writes an invalid-attempt receipt and publishes neither a score
+   nor a new latest pointer. The final checkpoint is already saved; after
+   fixing retrieval, resume only the final evaluation, not update 151.
 
 The upstream patch changes the Trainer import and adds rollout metadata capture.
 The inherited training/evaluation code still calls the pinned native teacher

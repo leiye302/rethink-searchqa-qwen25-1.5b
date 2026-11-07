@@ -1,4 +1,5 @@
 import json
+from contextlib import nullcontext
 import os
 from pathlib import Path
 import sys
@@ -9,6 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
 from common import UPSTREAM, load
 from rethink_searchqa import shell, sft
+from rethink_searchqa.retriever_guard import RetrievalFailure
 
 
 def test_1p5b_has_distinct_verified_stage1_handoff():
@@ -64,3 +66,22 @@ def test_exact_public_data_when_provided():
         pytest.skip('Pinned public SFT assets not supplied to this CPU test')
     train,order,probes=sft.check_data(Path(path))
     assert len(train)==6400 and len(order)==800 and len(probes)==200
+
+
+def test_sft_monitor_rejects_real_native_http_error(monkeypatch):
+    from common import question_id
+    from rethink_searchqa import sft_eval
+    from test_rethink import failing_retriever, MarkerTokenizer
+    monkeypatch.syspath_prepend(str(UPSTREAM))
+    tok=MarkerTokenizer()
+    tok.apply_chat_template=lambda messages,**kwargs:messages[0]['content']
+    monkeypatch.setattr(sft_eval,'evaluating',lambda model:nullcontext())
+    monkeypatch.setattr(sft_eval,'greedy',lambda model,tokenizer,inputs:
+        [tok.encode('<action>search[fixture]</action>')]+
+        [tok.encode('<action>answer[Paris]</action>')]*(len(inputs)-1))
+    questions=[{'question':f'Synthetic {i}','ground_truth':{'target':['Paris']},
+                'data_source':'nq'} for i in range(448)]
+    expected={'question_ids':[question_id(row) for row in questions],'source_counts':{'nq':448}}
+    with failing_retriever(monkeypatch) as url:
+        with pytest.raises(RetrievalFailure,match='transport_or_http_error'):
+            sft_eval.monitor(None,tok,questions,expected,url,400)

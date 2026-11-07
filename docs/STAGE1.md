@@ -75,5 +75,11 @@ Publish a model+optimizer/scheduler/RNG checkpoint before the final evaluation.
 Stage 2 verifies the Stage-1 manifest, dataset hash, backbone size, tokenizer,
 recipe and model file hashes, then initializes only the Actor weights.
 
+The isolated SFT environment includes pandas for pinned QA verification.
+An exhausted native retrieval error invalidates the monitor rather than
+becoming an answer or an EM score. It records `eval400_invalid.json` or
+`eval800_invalid.json` and stops visibly. The update-800 checkpoint is saved
+before its monitor, so a retrieval outage there does not discard the Actor.
+
 The CPU checks validate packaging, actual native search/reward and loss masks;
 they do not constitute a completed 1.5B GPU training run.

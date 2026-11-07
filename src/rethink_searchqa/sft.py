@@ -12,6 +12,7 @@ import sys
 import time
 
 from common import ROOT, atomic_json, load, sha
+from .retriever_guard import RetrievalFailure
 from .shell import INTRO_DIGEST, MARKER_ID, STYLE, assert_token
 from .stage1_assets import OBJECTIVE, fetch_asset
 
@@ -203,6 +204,16 @@ def run(args,train,order,probes):
     # Keep the original 900-step cosine schedule, ending the data pass at 800.
     factor=lambda s: s/150 if s<150 else .5*(1.+math.cos(math.pi*(s-150)/750))
     scheduler=torch.optim.lr_scheduler.LambdaLR(opt.optimizer,factor)
+
+    def monitor_at(step):
+        try:
+            metrics=monitor(model,tok,questions,expected,args.search_url,step)
+        except RetrievalFailure as error:
+            atomic_json(args.run_dir/f'eval{step}_invalid.json',
+                        {**error.receipt(),'scope':'monitor448','completed_updates':step})
+            raise
+        atomic_json(args.run_dir/f'eval{step}.json',metrics)
+
     with (args.run_dir/'training.jsonl').open('x',encoding='utf-8') as f:
         for step,batch in enumerate(order,1):
             lr=opt.optimizer.param_groups[0]['lr']
@@ -214,12 +225,12 @@ def run(args,train,order,probes):
                 print(row,flush=True)
             if step==400:
                 opt.release_gradients()
-                atomic_json(args.run_dir/'eval400.json',monitor(model,tok,questions,expected,args.search_url,step))
+                monitor_at(step)
     opt.release_gradients()
     save(model,tok,opt,scheduler,order,args.run_dir,parent)
     del opt,scheduler
     torch.cuda.empty_cache()
-    atomic_json(args.run_dir/'eval800.json',monitor(model,tok,questions,expected,args.search_url,800))
+    monitor_at(800)
     atomic_json(args.run_dir/'final200.json',diagnostic(model,tok,probes))
     print('Complete: fixed 800 updates, checkpoint, 400/800 monitor and final200.',flush=True)
 
