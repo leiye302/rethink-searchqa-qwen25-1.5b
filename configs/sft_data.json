@@ -1,0 +1,25 @@
+{
+  "schema": "searchqa-sft-v4-minimal-v1",
+  "repository": "leiye302/rethink-searchqa-qwen25-1.5b",
+  "tag": "sft-data-v4",
+  "source_suite_sha256": "8f5e6dcd7e94bc34a8c9ae1cc8eec117a47abb200622021e9ad51dc9e9a9a678",
+  "source_tokenizer_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+  "intro_digest": "27d762cbccb5d2672d8dbe9b20a583bdade9781d88fcdb95d90810882c0c8d16",
+  "token_id": 151665,
+  "eos_id": 151645,
+  "steps": 800,
+  "files": {
+    "batch_order.json": {
+      "bytes": 69293,
+      "sha256": "645836cc994ba6276830533c2866eb099454146efb9eadbafcda690297fa6f7e"
+    },
+    "probes200.jsonl.gz": {
+      "bytes": 154029,
+      "sha256": "3dd0c4631effb13df20657ad683b32b61058be5e436666a175d4de80d2cc1e81"
+    },
+    "train.jsonl.gz": {
+      "bytes": 5389323,
+      "sha256": "bc80e45b561cd4f90aa67e2b2ae7bc92fa83ebd18b7ff6b43b35a8fdb636e61c"
+    }
+  }
+}

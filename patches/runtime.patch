@@ -1,0 +1,45 @@
+diff --git a/agent_system/multi_turn_rollout/rollout_loop.py b/agent_system/multi_turn_rollout/rollout_loop.py
+index 8dfcb0d..089d668 100644
+--- a/agent_system/multi_turn_rollout/rollout_loop.py
++++ b/agent_system/multi_turn_rollout/rollout_loop.py
+@@ -341,6 +341,7 @@ class TrajectoryCollector:
+         traj_uid = np.array([str(uuid.uuid4()) for _ in range(batch_size)], dtype=object)
+         total_batch_list = [[] for _ in range(batch_size)]
+         total_infos = [[] for _ in range(batch_size)]
++        rethink_records = [[] for _ in range(batch_size)] if getattr(envs, '_rethink_capture_hints', False) else None
+         episode_lengths = np.zeros(batch_size, dtype=np.float32)
+         episode_rewards = np.zeros(batch_size, dtype=np.float32)
+         tool_callings = np.zeros(batch_size, dtype=np.float32)
+@@ -382,6 +383,9 @@ class TrajectoryCollector:
+             text_actions = self.tokenizer.batch_decode(batch.batch['responses'], skip_special_tokens=True)
+             
+             next_obs, rewards, dones, infos = envs.step(text_actions)
++            if rethink_records is not None:
++                from rethink_searchqa.hints import capture
++                capture(rethink_records, self.tokenizer, batch, next_obs, infos, active_masks, _step)
+             current_gamefiles = _gamefiles_from_infos(infos)
+ 
+             if len(rewards.shape) == 2:
+@@ -430,6 +434,9 @@ class TrajectoryCollector:
+                     episode_lengths=episode_lengths,
+                     )
+         
++        if rethink_records is not None:
++            from rethink_searchqa.hints import attach
++            attach(rethink_records, total_batch_list, envs.tasks)
+         return total_batch_list, episode_rewards, episode_lengths, success, traj_uid, tool_callings
+     
+     def dynamic_multi_turn_loop(
+diff --git a/verl/trainer/main_sdar.py b/verl/trainer/main_sdar.py
+index e067c74..c73dfe2 100644
+--- a/verl/trainer/main_sdar.py
++++ b/verl/trainer/main_sdar.py
+@@ -164,7 +164,7 @@ class SDARTaskRunner:
+         print(f"[SDAR] sdar_coef: {config.actor_rollout_ref.actor.sdar_loss_coef}")
+         print(f"[SDAR] gate_beta: {config.actor_rollout_ref.actor.sdar_gate_beta}")
+ 
+-        from verl.trainer.ppo.skillsd_ray_trainer import SkillSDRayTrainer
++        from rethink_searchqa.trainer import RethinkSearchTrainer as SkillSDRayTrainer
+ 
+         trainer = SkillSDRayTrainer(
+             config=config,

@@ -1,0 +1,46 @@
+name: Clean-checkout RETHINK Search-QA CPU reproduction
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reproduction:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      CUDA_VISIBLE_DEVICES: ''
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip wheel setuptools
+      - run: python -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install -r configs/requirements-cpu.txt
+      - run: python src/setup.py --framework
+      - run: python src/setup.py --verify
+      - run: python scripts/check_release.py
+      - run: python -m pytest tests -q
+      - name: Pinned full QA data and fixed balanced monitoring subset
+        run: python src/data.py --prepare --verify
+      - name: Real native environment with a labeled HTTP fixture, not an E5 quality claim
+        run: python src/env_smoke.py
+      - name: Entry and shell checks without GPU or retriever weights
+        run: |
+          bash -n scripts/train.sh scripts/eval.sh scripts/start_retriever.sh
+          bash scripts/train.sh --dry-run > /tmp/searchqa-train.yaml
+          bash scripts/eval.sh --model ./unused --dry-run > /tmp/searchqa-eval.yaml
+          bash scripts/eval.sh --model ./unused --eval-scope subset --dry-run > /tmp/searchqa-monitor.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpu-source-data-environment-evidence
+          path: |
+            results/environment_smoke.json
+            data/searchqa/data_receipt.json
+            data/searchqa/validation_subset_receipt.json
+          if-no-files-found: ignore

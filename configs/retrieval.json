@@ -1,0 +1,61 @@
+{
+  "index": {
+    "repository": "PeterJinGo/wiki-18-e5-index",
+    "revision": "a4d31160a035f30764604f4827cd8f1d0315eb86",
+    "files": {
+      "part_aa": {
+        "bytes": 42949672960,
+        "sha256": "a8a6a246951da4bbc8771a223283ef61963882a32864d9044ec00abb90fc3023"
+      },
+      "part_ab": {
+        "bytes": 21609402413,
+        "sha256": "b6d9bc943626fe7cb44de4c849e9379e7f272ab216c0552acbcf2390cc033c11"
+      }
+    }
+  },
+  "corpus": {
+    "repository": "PeterJinGo/wiki-18-corpus",
+    "revision": "69c1c00ffe7c5554c68d8548355cb22e46aabc51",
+    "files": {
+      "wiki-18.jsonl.gz": {
+        "bytes": 5123307260,
+        "sha256": "7abd929223399cd63c52b499f289bf4f9039be1e9f8c43e1cb3938305b2317db"
+      }
+    }
+  },
+  "encoder": {
+    "repository": "intfloat/e5-base-v2",
+    "revision": "f52bf8ec8c7124536f0efb74aca902b2995e5bcd",
+    "files": {
+      "model.safetensors": {
+        "bytes": 437955512,
+        "sha256": "d0d559c47d5f71b1d280b13b62a2657f3e3bc70c0786f9ab91a36545e6a8f693"
+      },
+      "config.json": {
+        "bytes": 650,
+        "sha256": "01cc39aa39538a8179aa131c8a16adc03b506c92009f091502e4eb0c702f5f78"
+      },
+      "special_tokens_map.json": {
+        "bytes": 125,
+        "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3"
+      },
+      "tokenizer.json": {
+        "bytes": 711396,
+        "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      },
+      "tokenizer_config.json": {
+        "bytes": 314,
+        "sha256": "ae83fa6ca0333117ff12606020af925d648667ef70d92ff7f27d781ba0ca4544"
+      },
+      "vocab.txt": {
+        "bytes": 231508,
+        "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+      }
+    }
+  },
+  "topk": 3,
+  "index_gpu_float16": true,
+  "encoder_float16": true,
+  "pooling": "mean",
+  "query_max_length": 256
+}

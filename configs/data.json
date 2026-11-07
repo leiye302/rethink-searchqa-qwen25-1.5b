@@ -1,0 +1,29 @@
+{
+  "repository": "PeterJinGo/nq_hotpotqa_train",
+  "revision": "b7d80abfee334a7a91cb377544f09180d58b34f6",
+  "splits": {
+    "train": {
+      "bytes": 355663891,
+      "sha256": "c3cc21e862a8469105de666101578cbff23cdc77e91a803cef102622c89cc4f6",
+      "rows": 169615,
+      "source_counts": {
+        "nq": 79168,
+        "hotpotqa": 90447
+      }
+    },
+    "test": {
+      "bytes": 70370337,
+      "sha256": "30aa887b6d47e06e8c0f6f5307c88fe4e13461ac25a20ec0a5433ad7a4fe25dc",
+      "rows": 51713,
+      "source_counts": {
+        "bamboogle": 125,
+        "nq": 3610,
+        "2wikimultihopqa": 12576,
+        "popqa": 14267,
+        "musique": 2417,
+        "triviaqa": 11313,
+        "hotpotqa": 7405
+      }
+    }
+  }
+}

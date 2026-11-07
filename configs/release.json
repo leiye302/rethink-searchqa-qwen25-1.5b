@@ -1,0 +1,7 @@
+{
+  "size": "1.5b",
+  "family": "Qwen2.5",
+  "hardware": "4xA100-80GB",
+  "method": "wrapped Route-SFT then native GRPO+OPSD beta5 with Actor-triggered Teacher-only hints",
+  "default_sft_actor": "runs/sft/checkpoint_000800/model"
+}
